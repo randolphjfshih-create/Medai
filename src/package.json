@@ -1,0 +1,26 @@
+
+{
+  "name": "ai-med-assistant-linebot",
+  "version": "0.2.0",
+  "description": "AI medical pre-triage assistant for LINE (patient-facing, no diagnosis).",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "express": "^4.19.2",
+    "ioredis": "^5.4.1",
+    "dotenv": "^16.4.5",
+    "@line/bot-sdk": "^9.0.2",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.5",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.30"
+  }
+}
