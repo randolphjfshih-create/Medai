@@ -1,6 +1,7 @@
+
 {
   "name": "ai-med-assistant-linebot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI medical pre-triage assistant for LINE (patient-facing, no diagnosis).",
   "main": "dist/index.js",
   "scripts": {
