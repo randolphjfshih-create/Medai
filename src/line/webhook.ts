@@ -36,3 +36,11 @@ export const lineWebhookHandler = async (req: Request, res: Response) => {
     res.status(500).send("error");
   }
 };
+
+if (event.type === "message" && event.message.type === "text") {
+  console.log("🟢 EVENT:", JSON.stringify(event)); // 看得到 userId / message
+  const replyText = await dialogueManager.handleUserMessage(userId, userMessage);
+  console.log("📝 REPLY:", replyText); // 看即將回什麼
+  await replyToLine(event.replyToken, replyText);
+  console.log("✅ replied");
+}
