@@ -1,9 +1,8 @@
 
 import { Request, Response } from "express";
-import { dialogueManager } from "../core/dialogueManager";
-import { replyToLine } from "./lineClient";
+import { dialogueManager, nextQuickReplies } from "../core/dialogueManager";
+import { replyToLine, pushToLine } from "./lineClient";
 import { validateLineSignature } from "./verifySignature";
-import { pushToLine } from "./pushClient";
 import { setSession } from "../core/stateStore";
 
 export const lineWebhookHandler = async (req: Request & { rawBody?: Buffer }, res: Response) => {
@@ -19,18 +18,18 @@ export const lineWebhookHandler = async (req: Request & { rawBody?: Buffer }, re
 
         if (["reset", "重新開始", "重置"].includes(userMessage.toLowerCase())) {
           await setSession(userId, {} as any);
-          await replyToLine(event.replyToken, "已重新開始，請問你今天主要哪裡不舒服呢？");
+          await replyToLine(event.replyToken, "已重新開始，先跟你打個招呼～今天我會把你提供的重點整理給醫師，可以嗎？");
           continue;
         }
 
         console.log("🟢 EVENT:", JSON.stringify({ userId, userMessage }));
-
         await replyToLine(event.replyToken, "收到，我正在幫你整理重點，馬上再跟你確認幾個小問題～");
 
         setImmediate(async () => {
-          const replyText = await dialogueManager.handleUserMessage(userId, userMessage);
-          console.log("📝 REPLY:", replyText);
-          await pushToLine(userId, replyText);
+          const result = await dialogueManager.handleUserMessage(userId, userMessage);
+          const quick = nextQuickReplies(result.state);
+          console.log("📝 REPLY:", result.text, "➡ quick:", quick);
+          await pushToLine(userId, result.text, quick);
         });
       }
     }

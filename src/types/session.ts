@@ -1,19 +1,32 @@
 
-export interface SessionData {
-  state?: 
-    | "INTRO"
-    | "ASK_CHIEF"
-    | "ASK_ONSET"
-    | "ASK_QUALITY"
-    | "ASK_ASSOCIATED"
-    | "ASK_HISTORY"
-    | "ASK_CONCERN"
-    | "END";
+export type BotState =
+  | "RAPPORT"
+  | "CC"
+  | "HPI_ONSET"
+  | "HPI_TRIGGER_RELIEF"
+  | "HPI_QUALITY_SITE"
+  | "HPI_SEVERITY"
+  | "HPI_ASSOC"
+  | "ROS"
+  | "PMH"
+  | "MEDS_ALLERGY"
+  | "FH_SH"
+  | "END";
 
-  chiefComplaint?: string;
+export interface HPIBlock {
   onset?: string;
-  quality?: string;
+  triggersReliefs?: string;
+  qualityAndSite?: string;
+  severity?: string;
   associated?: string;
-  history?: string;
-  concern?: string;
+}
+
+export interface SessionData {
+  state?: BotState;
+  cc?: string;
+  hpi?: HPIBlock;
+  ros?: string;
+  pmh?: string;
+  medsAllergy?: string;
+  fhSh?: string;
 }

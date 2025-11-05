@@ -4,7 +4,6 @@ import express from "express";
 import { lineWebhookHandler } from "./line/webhook";
 
 const app = express();
-
 app.use(express.json({ verify: (req: any, _res, buf) => { (req as any).rawBody = buf; } }));
 
 app.get("/health", (_req, res) => res.status(200).send("ok"));

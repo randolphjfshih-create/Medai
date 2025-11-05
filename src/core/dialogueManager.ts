@@ -2,84 +2,117 @@
 import { getSession, setSession } from "./stateStore";
 import { callLLM } from "./llmClient";
 import { safetyFilter } from "./safetyFilter";
-import { SessionData } from "../types/session";
+import { SessionData, BotState } from "../types/session";
 
 const DISABLE_LLM = (process.env.DISABLE_LLM_FOR_DEBUG || "false").toLowerCase() === "true";
 
+export function nextQuickReplies(state?: BotState): string[] | undefined {
+  switch (state) {
+    case "RAPPORT": return ["可以開始", "好的"];
+    case "CC": return ["頭痛", "喉嚨痛", "腹痛", "胸悶", "發燒", "其他"];
+    case "HPI_ONSET": return ["突然", "逐漸", "不確定"];
+    case "HPI_TRIGGER_RELIEF": return ["運動會加重", "休息會緩解", "吃東西會緩解", "不明顯"];
+    case "HPI_QUALITY_SITE": return ["刺痛", "悶痛", "灼熱", "壓迫", "說不上來"];
+    case "HPI_SEVERITY": return ["0","1","2","3","4","5","6","7","8","9","10"];
+    case "HPI_ASSOC": return ["發燒", "胸痛", "呼吸急促", "嘔吐", "腹瀉", "頭暈", "麻木", "無"];
+    case "ROS": return ["無明顯", "發燒", "咳嗽", "胸痛", "腹瀉", "血尿", "頭痛", "皮疹"];
+    case "PMH": return ["無慢性病", "高血壓", "糖尿病", "心臟病", "氣喘", "其他"];
+    case "MEDS_ALLERGY": return ["無用藥", "有慢箋", "保健品", "藥物過敏", "食物過敏", "環境過敏"];
+    case "FH_SH": return ["家族心血管", "家族糖尿病", "抽菸", "喝酒", "運動規律", "睡眠差"];
+    default: return undefined;
+  }
+}
+
 export const dialogueManager = {
-  handleUserMessage: async (userId: string, userMessage: string): Promise<string> => {
-    const session: SessionData = await getSession(userId);
-    let state = session.state || "INTRO";
-    let nextQuestion = "";
+  handleUserMessage: async (userId: string, userMessage: string): Promise<{ text: string; state: BotState }> => {
+    const s: SessionData = await getSession(userId);
+    let state: BotState = s.state || "RAPPORT";
+
+    function ask(text: string, st: BotState) {
+      s.state = st; 
+      setSession(userId, s);
+      return { text, state: st as BotState };
+    }
 
     switch (state) {
-      case "INTRO":
-        nextQuestion = "嗨～我是預診小幫手。我會把你現在最不舒服、最想讓醫師知道的重點記下來，醫師看診時會優先看到這些。我不是醫師，不會開藥或做診斷喔！今天你主要哪裡不舒服呢？";
-        session.state = "ASK_CHIEF";
-        break;
-      case "ASK_CHIEF":
-        session.chiefComplaint = userMessage;
-        nextQuestion = "這個狀況大概是什麼時候開始的？是突然發生，還是慢慢越來越明顯？";
-        session.state = "ASK_ONSET";
-        break;
-      case "ASK_ONSET":
-        session.onset = userMessage;
-        nextQuestion = "了解～那這種不舒服比較像哪一種？例如：刺痛？悶悶壓著？灼熱？還是別的？";
-        session.state = "ASK_QUALITY";
-        break;
-      case "ASK_QUALITY":
-        session.quality = userMessage;
-        nextQuestion = "還有一起發生別的狀況嗎？像是發燒、冒冷汗、呼吸很喘、想吐、頭暈，或手腳麻木？";
-        session.state = "ASK_ASSOCIATED";
-        break;
-      case "ASK_ASSOCIATED":
-        session.associated = userMessage;
-        nextQuestion = "你平常有固定在吃的藥或有慢性病嗎？（我會寫給醫師，醫師可以更快判斷風險）";
-        session.state = "ASK_HISTORY";
-        break;
-      case "ASK_HISTORY":
-        session.history = userMessage;
-        nextQuestion = "最後想幫你寫進重點：這件事情讓你最擔心的是什麼？我會直接幫你標成優先給醫師看。";
-        session.state = "ASK_CONCERN";
-        break;
-      case "ASK_CONCERN":
-        session.concern = userMessage;
-        nextQuestion = "謝謝你告訴我，我已經整理好了。等一下醫師看診時，會先看到你剛剛說的重點，會特別注意你最擔心的那一塊。如果此刻有突然變得很喘、快昏倒或劇烈疼痛加劇，請立刻告訴現場人員，這真的很重要。";
-        session.state = "END";
-        break;
+      case "RAPPORT":
+        return ask("嗨～我是預診小幫手。我會把你提供的重點整理給醫師，過程中也會盡量讓你放心。可以開始嗎？", "CC");
+
+      case "CC":
+        s.cc = userMessage;
+        return ask("這個狀況大概何時開始？突然還是逐漸？（OPQRST：O）", "HPI_ONSET");
+
+      case "HPI_ONSET":
+        s.hpi = s.hpi || {};
+        s.hpi.onset = userMessage;
+        return ask("有沒有讓它更嚴重或比較緩解的因素？例如運動、休息、進食等。（OPQRST：P）", "HPI_TRIGGER_RELIEF");
+
+      case "HPI_TRIGGER_RELIEF":
+        s.hpi = s.hpi || {};
+        s.hpi.triggersReliefs = userMessage;
+        return ask("不舒服比較像哪一種？（刺痛/悶痛/灼熱/壓迫…）位置在哪裡？（OPQRST：Q & S）", "HPI_QUALITY_SITE");
+
+      case "HPI_QUALITY_SITE":
+        s.hpi = s.hpi || {};
+        s.hpi.qualityAndSite = userMessage;
+        return ask("嚴重程度 0–10 分，你會給幾分？（OPQRST：S）", "HPI_SEVERITY");
+
+      case "HPI_SEVERITY":
+        s.hpi = s.hpi || {};
+        s.hpi.severity = userMessage;
+        return ask("有沒有一起發生其他症狀？例如發燒、胸痛、呼吸急促、嘔吐、腹瀉、頭暈、麻木等。（OPQRST：A）", "HPI_ASSOC");
+
+      case "HPI_ASSOC":
+        s.hpi = s.hpi || {};
+        s.hpi.associated = userMessage;
+        return ask("做一輪快速檢查（ROS）：可以列出或回覆「無明顯」。一般：發燒/倦怠/盜汗/體重變化；呼吸：咳嗽/咳痰/喘；心血管：胸痛/心悸/呼吸困難/下肢水腫；腸胃：腹痛/嘔吐/腹瀉/便祕；泌尿：頻尿/血尿/排尿困難；神經：頭痛/頭暈/麻木/抽搐；皮膚：疹子/搔癢。", "ROS");
+
+      case "ROS":
+        s.ros = userMessage;
+        return ask("既往史（PMH）：慢性病、過去手術或住院、是否有過往相似症狀。", "PMH");
+
+      case "PMH":
+        s.pmh = userMessage;
+        return ask("用藥與過敏史：現用處方藥、保健食品/中藥/自購藥品，以及任何藥物/食物/環境過敏。", "MEDS_ALLERGY");
+
+      case "MEDS_ALLERGY":
+        s.medsAllergy = userMessage;
+        return ask("家族史/社會史：家族是否有高血壓/糖尿病/心臟病/中風/癌症？生活習慣如菸/酒/檳榔/咖啡因/運動/睡眠狀況？", "FH_SH");
+
+      case "FH_SH":
+        s.fhSh = userMessage;
+        s.state = "END";
+        await setSession(userId, s);
+        const summaryForUser = await generatePatientReply(s);
+        return { text: summaryForUser, state: "END" };
+
       default:
-        nextQuestion = "我已經把你的重點留給醫師了，等等醫師會再跟你詳細確認喔 🙌";
-        session.state = "END";
-        break;
+        return { text: "我已把你的重點整理給醫師了，等等醫師會再跟你詳細確認喔 🙌 若要重新開始，請輸入「重新開始」。", state: "END" };
     }
-
-    await setSession(userId, session);
-
-    if (DISABLE_LLM) {
-      return `我在這裡～已收到你的訊息，先測試通道正常 ✅\n${nextQuestion}`;
-    }
-
-    const systemInstruction = `
-你是「預診小幫手」。任務：以溫和口吻蒐集病人主訴與關鍵資訊，協助醫師節省問診時間。
-絕對禁止：
-- 提供診斷、疾病名稱、鑑別診斷機率
-- 提供治療/用藥/劑量/非處方建議
-- 建議延後就醫
-允許：
-- 行政指引（等候、帶證件）
-- 若出現危急徵兆（呼吸惡化、意識改變、劇烈胸痛突發等），提醒立即尋求現場協助或急救（這不是診斷）
-語氣：繁體中文、親切、2~3 句內，先簡短共感，再問下一題。
-輸出只包含要發給病人的文字，勿加任何標記。
-`;
-
-    const userContext = `
-病人剛剛說：「${userMessage}」
-請先用一小句回應他的感受 (共感/理解)，然後問下一個問題：
-「${nextQuestion}」
-`;
-
-    const draft = await callLLM(systemInstruction, userContext);
-    const safeReply = safetyFilter(draft);
-    return safeReply;
   },
 };
+
+async function generatePatientReply(s: SessionData): Promise<string> {
+  if (DISABLE_LLM) {
+    return "感謝你詳細的說明，我已把重點整理好交給醫師。若此刻症狀突然加劇、呼吸困難或意識不清，請立刻告知現場人員。";
+  }
+  const systemInstruction = `
+你是「預診小幫手」。任務：以溫和口吻收束對話並安撫病人，切勿提供診斷/用藥建議，不得建議延後就醫。
+若提到危急徵兆（呼吸惡化、意識改變、劇烈胸痛突發等），提醒立即尋求現場協助或急救（不構成診斷）。
+輸出繁體中文、2~3 句內，先共感、再說明已整理重點會交給醫師，並提醒如有惡化要立刻告知。
+`;
+
+  const userContext = `
+病人對話摘要：
+CC: ${s.cc || ""}
+HPI: onset=${s.hpi?.onset || ""} | triggers/relief=${s.hpi?.triggersReliefs || ""} | quality/site=${s.hpi?.qualityAndSite || ""} | severity=${s.hpi?.severity || ""} | associated=${s.hpi?.associated || ""}
+ROS: ${s.ros || ""}
+PMH: ${s.pmh || ""}
+Meds/Allergy: ${s.medsAllergy || ""}
+FH/SH: ${s.fhSh || ""}
+請依上方資訊，完成對病人的收束語，語氣溫和、簡短。
+`;
+
+  const draft = await callLLM(systemInstruction, userContext);
+  return safetyFilter(draft);
+}
