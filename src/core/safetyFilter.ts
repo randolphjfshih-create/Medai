@@ -11,9 +11,7 @@ const fallback = "這一部分需要醫師親自評估。我已經幫你把狀�
 export function safetyFilter(text: string): string {
   if (!text) return fallback;
   for (const pattern of blacklistPatterns) {
-    if (pattern.test(text)) {
-      return fallback;
-    }
+    if (pattern.test(text)) return fallback;
   }
   return text;
 }
