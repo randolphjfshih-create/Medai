@@ -5,9 +5,7 @@ const blacklistPatterns = [
   /(不用|先不要|不需要).{0,5}(看醫生|急診|就醫)/i,
   /(明天再|改天再|之後再).{0,8}(看|就醫|處理)/i,
 ];
-
 const fallback = "這一部分需要醫師親自評估。我已經幫你把狀況記下來，等一下醫師會先看你的重點。如果此刻覺得症狀突然變得很嚴重（像是呼吸困難惡化、快昏倒、劇烈疼痛瞬間加劇），請立刻告知現場人員或尋求急救協助，這真的很重要。";
-
 export function safetyFilter(text: string): string {
   if (!text) return fallback;
   for (const pattern of blacklistPatterns) {
