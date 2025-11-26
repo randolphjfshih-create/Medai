@@ -1,5 +1,6 @@
 
 import { SessionData } from "../types/session";
+
 export function buildDoctorSummary(userId: string, s: SessionData): string {
   const lines: string[] = [];
   lines.push(`ID: ${userId}`);
