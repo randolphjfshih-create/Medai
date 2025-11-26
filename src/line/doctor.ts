@@ -60,7 +60,7 @@ load(); setInterval(load, 10000);
 
 doctorRouter.get("/api/summaries", async (_req, res) => {
   const ids = await listSessions();
-  const items:any[] = [];
+  const items: any[] = [];
   for (const userId of ids) {
     const s = await getSession(userId);
     if (!s || Object.keys(s).length === 0) continue;
