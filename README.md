@@ -1,35 +1,32 @@
 
-# AI Medical Assistant LINE Bot (v2)
+# AI Medical Assistant LINE Bot v7 (Voice Edition)
 
-**更新重點**
-- 修正 LINE 簽章驗證使用原始 raw body（避免 Verify OK、訊息卻不回）
-- 新增 `/health` 健康檢查路由
-- `webhook` 加上 `EVENT/REPLY` 調試 log
-- 增加 `DISABLE_LLM_FOR_DEBUG` 環境變數，一鍵跳過 LLM 測通道
+功能：
+- LINE 預診問診流程（RAPPORT → CC → HPI(OPQRST) → ROS → PMH → MEDS/ALLERGY → FH/SH）
+- 醫師端 Dashboard：`/doctor`（Basic Auth）可查看每個使用者的病例摘要、封存紀錄
+- Web 病患端假「視訊診間」：`/public/ai-patient.html`
+  - 左邊聊天室
+  - 右邊 AI 虛擬醫師影片（假視訊）
+  - 透過 `/api/web-chat` 調用同一套問診流程
+  - ✅ 使用者可按 🎙️ 麥克風用「語音輸入」
+  - ✅ AI 回覆可用瀏覽器 TTS 念出來（使用者可用 checkbox 開/關）
 
-## 本地啟動
-```bash
-npm install
-npm run dev
-```
-另開一個 terminal：
-```bash
-ngrok http 3000
-```
-把 `https://xxxx.ngrok-free.app/line-webhook` 填到 LINE Webhook URL → 按 Verify
+## 影片放哪？
 
-## 重要環境變數
-- `LINE_CHANNEL_ACCESS_TOKEN`
-- `LINE_CHANNEL_SECRET`
-- `OPENAI_API_KEY`（若 `DISABLE_LLM_FOR_DEBUG=true` 可先不設）
-- `REDIS_URL`（沒設會改用記憶體）
-- `DISABLE_LLM_FOR_DEBUG`（預設 false）
+請將你準備好的「假視訊」影片檔（例如 MP4）放在
 
-## 健康檢查
-```
-GET /health  -> "ok"
-```
+`public/doctor-loop.mp4`
 
-## 調試建議
-- Render/Railway 上看 Logs，應見：`🟢 EVENT` → `📝 REPLY` → `✅ replied`
-- 若 `replyToken` 逾時，先把 `DISABLE_LLM_FOR_DEBUG=true` 測通道
+部署後，前端會透過：
+
+`<video src="/public/doctor-loop.mp4" ...>`
+
+來載入。
+
+> 若你想改檔名或改路徑，只要同步修改 `public/ai-patient.html` 裡 `<video>` 的 `src` 即可。
+
+## 語音相關說明
+
+- 語音輸入：使用瀏覽器 Web Speech API（SpeechRecognition），建議用 Chrome / Edge 測試。
+- 語音輸出：使用瀏覽器 SpeechSynthesis 將 AI 回覆（已過 safety filter）唸出來。
+- 若瀏覽器不支援，按鈕會自動 disabled 或僅顯示文字，不會影響文字問診流程。

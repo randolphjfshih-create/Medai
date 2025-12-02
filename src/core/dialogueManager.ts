@@ -29,7 +29,7 @@ export const dialogueManager = {
     let state: BotState = s.state || "RAPPORT";
 
     function ask(text: string, st: BotState) {
-      s.state = st; 
+      s.state = st;
       setSession(userId, s);
       return { text, state: st as BotState };
     }
@@ -73,7 +73,7 @@ export const dialogueManager = {
 
       case "PMH":
         s.pmh = userMessage;
-        return ask("用藥與過敏史：現用處方藥、保健用品/中藥/自購藥品，以及任何藥物/食物/環境過敏。", "MEDS_ALLERGY");
+        return ask("用藥與過敏史：現用處方藥、保健食品/中藥/自購藥品，以及任何藥物/食物/環境過敏。", "MEDS_ALLERGY");
 
       case "MEDS_ALLERGY":
         s.medsAllergy = userMessage;

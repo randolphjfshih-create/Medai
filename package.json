@@ -1,8 +1,8 @@
 
 {
   "name": "ai-med-assistant-linebot",
-  "version": "0.7.0",
-  "description": "AI medical pre-triage assistant for LINE + Web fake video UI + doctor dashboard.",
+  "version": "0.7.1",
+  "description": "AI medical pre-triage assistant for LINE with doctor dashboard and web fake-video UI (voice in/out).",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
