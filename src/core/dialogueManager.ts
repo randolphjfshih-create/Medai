@@ -35,8 +35,45 @@ async function evaluateAnswer(
   answer: string,
   session: SessionData
 ): Promise<{ ok: boolean; followup?: string }> {
-  if (DISABLE_LLM) return { ok: true }; // debug 模式直接放行
+  if (DISABLE_LLM) return { ok: true };
 
+  const text = (answer || "").trim();
+
+  // 1) 大部分正常回答直接放行，避免一直 REASK
+  //   - 長度夠長（>= 6 字）就當作有在認真回答，不再叫 LLM 判斷
+  if (text.length >= 6) {
+    return { ok: true };
+  }
+
+  // 2) 針對發作時間 HPI_ONSET：只要有「數字 + 時間單位」就視為 OK
+  if (phase === "HPI_ONSET") {
+    const hasTimeWord = /[天日週礼拜禮拜月年小時小时鐘钟分鐘分]/.test(text);
+    const hasNumber = /[0-9０-９一二三四五六七八九十幾半]/.test(text);
+    if (hasTimeWord && hasNumber) {
+      return { ok: true };
+    }
+  }
+
+  // 3) 針對嚴重程度 HPI_SEVERITY：只要有 0–10 的數字就視為 OK
+  if (phase === "HPI_SEVERITY") {
+    const m = text.match(/([0-9０-９])/);
+    if (m) {
+      const n = parseInt(m[1].replace(/[^0-9]/g, ""), 10);
+      if (!isNaN(n) && n >= 0 && n <= 10) {
+        return { ok: true };
+      }
+    }
+  }
+
+  // 4) 明顯敷衍 or 離題時，才請 LLM 幫忙重新問一次
+  //    例如「不知道」「隨便」「哈哈」「呵呵」等
+  const obviousBad = /^(不知道|隨便|沒差|不想講|看你|隨意|哈哈+|呵呵+|嗯嗯+|嗚嗚+)$/.test(text);
+  if (!obviousBad && text.length > 0) {
+    // 雖然很短，但看起來也不像亂打，就放行
+    return { ok: true };
+  }
+
+  // 5) 真的覺得很敷衍的回答，才丟給 LLM 產生 REASK
   const systemInstruction = `
 你是一個「醫療預診小助手」，負責幫忙判斷「病人的回答有沒有回答到問題」。
 只做判斷，不做診斷，也不提供任何治療或用藥建議。
@@ -73,75 +110,12 @@ async function evaluateAnswer(
   `;
 
   const raw = await callLLM(systemInstruction, userContext);
-  const text = (raw || "").trim();
+  const out = (raw || "").trim();
 
-  if (text.startsWith("REASK:")) {
-    return { ok: false, followup: text.replace(/^REASK:\s*/i, "") };
+  if (out.startsWith("REASK:")) {
+    return { ok: false, followup: out.replace(/^REASK:\s*/i, "") };
   }
   return { ok: true };
-}
-
-/**
- * 根據「目前已收集資訊 + 問診階段」，請 LLM 幫忙生下一句自然的問題
- */
-async function buildDynamicQuestion(
-  phase: BotState,
-  session: SessionData,
-  fallback: string
-): Promise<string> {
-  if (DISABLE_LLM) return fallback;
-
-  const systemInstruction = `
-你是一個「醫療預診對話小助手」，負責在看診前先和病人聊天與問診。
-要點：
-- 不可以下診斷、不可以建議具體醫療處置或用藥。
-- 只能做「同理＋釐清症狀」的對話，幫真正的醫師整理資訊。
-- 用溫暖、口語化的繁體中文，像門診護理師或住院醫師在聊天。
-- 依照目前的問診階段（phase）發問，phase 只限定問題主題，實際用字遣詞可以自由一點。
-- 話不要太長，1～3 句即可，最後一句一定要有一個清楚的問題。
-- 可以簡短回應病人的感受，例如「聽起來你已經不舒服一陣子了」，再接問題。
-- 嚴禁出現「我覺得你是 XX 病」「建議你吃 XX 藥」這類內容。
-  `;
-
-  const userContext = `
-[phase]: ${phase}
-[已知資訊節錄（給你參考，可以引用）]
-- CC: ${session.cc || ""}
-- HPI:
-  - Onset & Course: ${session.hpi?.onset || ""}
-  - Triggers/Relief: ${session.hpi?.triggersReliefs || ""}
-  - Quality & Site: ${session.hpi?.qualityAndSite || ""}
-  - Severity: ${session.hpi?.severity || ""}
-  - Associated: ${session.hpi?.associated || ""}
-- ROS: ${session.ros || ""}
-- PMH: ${session.pmh || ""}
-- Meds/Allergy: ${session.medsAllergy || ""}
-- FH/SH: ${session.fhSh || ""}
-
-請你根據 phase 決定下一個問題的重點：
-- phase="RAPPORT": 打招呼、簡單寒暄、建立信任，最後要確認「能不能開始聊今天不舒服的地方」。
-- phase="CC": 聚焦在「今天主要想解決什麼不舒服」，可以用一兩句同理，然後請他描述主訴。
-- phase="HPI_ONSET": 針對發作時間與病程問，像是從什麼時候開始、突然還是慢慢變嚴重。
-- phase="HPI_TRIGGER_RELIEF": 問什麼會讓症狀變好或變壞（活動、姿勢、休息、飲食等）。
-- phase="HPI_QUALITY_SITE": 問症狀的性質（刺痛、悶痛、灼熱、壓迫…）和位置。
-- phase="HPI_SEVERITY": 問嚴重程度 0–10 分，可以順便同理。
-- phase="HPI_ASSOC": 問有沒有一起出現的其他症狀，例如發燒、胸痛、呼吸急促、嘔吐、腹瀉、頭暈、麻木等。
-- phase="ROS": 做系統性掃描，可以請病人用列舉的方式說有/沒有。
-- phase="PMH": 問慢性病、過去手術或住院，以及是否有過類似狀況。
-- phase="MEDS_ALLERGY": 問正在使用的處方藥／保健食品／中藥／自購藥，以及藥物/食物/環境過敏。
-- phase="FH_SH": 問家族心血管疾病、糖尿病、中風、癌症，以及菸酒、檳榔、咖啡因、運動、睡眠習慣。
-
-請輸出「一小段自然的對話內容」，最後一句要是一個問題。
-不要多講任何關於診斷或治療的建議。
-  `;
-
-  try {
-    const draft = await callLLM(systemInstruction, userContext);
-    const safe = safetyFilter(draft || "");
-    return safe || fallback;
-  } catch {
-    return fallback;
-  }
 }
 
 export const dialogueManager = {
