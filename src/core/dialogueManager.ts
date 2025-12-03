@@ -26,6 +26,62 @@ export function nextQuickReplies(state?: BotState): string[] | undefined {
 }
 
 /**
+ * 檢查回答是否合理
+ * - 回覆 "OK" 代表可接受
+ * - 回覆 "REASK: xxx" 代表要留在同一題，請再追問一次
+ */
+async function evaluateAnswer(
+  phase: BotState,
+  answer: string,
+  session: SessionData
+): Promise<{ ok: boolean; followup?: string }> {
+  if (DISABLE_LLM) return { ok: true }; // debug 模式直接放行
+
+  const systemInstruction = `
+你是一個「醫療預診小助手」，負責幫忙判斷「病人的回答有沒有回答到問題」。
+只做判斷，不做診斷，也不提供任何治療或用藥建議。
+
+規則：
+- 如果病人的回答跟目前問診階段 phase 的主題明顯相關，而且有提供一些實際資訊，
+  請只輸出：OK
+- 如果病人的回答很明顯離題、只有很短的字詞（像「不知道」「隨便」「哈哈」）、
+  或是亂輸入（像是一串無意義的字），請輸出：
+  REASK: ＋一小句繁體中文，重新用比較好懂的方式問同一題，
+  並且可以簡短同理/說明你沒有聽懂。
+
+嚴禁：
+- 不可以出現任何疾病名稱、診斷結論。
+- 不可以出現「建議你吃 XX 藥」「先不用看醫生」這種句子。
+  `;
+
+  const userContext = `
+[phase]: ${phase}
+[answer]: ${answer}
+
+[目前已知資訊節錄，供你判斷參考]
+- CC: ${session.cc || ""}
+- HPI:
+  - Onset & Course: ${session.hpi?.onset || ""}
+  - Triggers/Relief: ${session.hpi?.triggersReliefs || ""}
+  - Quality & Site: ${session.hpi?.qualityAndSite || ""}
+  - Severity: ${session.hpi?.severity || ""}
+  - Associated: ${session.hpi?.associated || ""}
+- ROS: ${session.ros || ""}
+- PMH: ${session.pmh || ""}
+- Meds/Allergy: ${session.medsAllergy || ""}
+- FH/SH: ${session.fhSh || ""}
+  `;
+
+  const raw = await callLLM(systemInstruction, userContext);
+  const text = (raw || "").trim();
+
+  if (text.startsWith("REASK:")) {
+    return { ok: false, followup: text.replace(/^REASK:\s*/i, "") };
+  }
+  return { ok: true };
+}
+
+/**
  * 根據「目前已收集資訊 + 問診階段」，請 LLM 幫忙生下一句自然的問題
  */
 async function buildDynamicQuestion(
@@ -41,16 +97,16 @@ async function buildDynamicQuestion(
 - 不可以下診斷、不可以建議具體醫療處置或用藥。
 - 只能做「同理＋釐清症狀」的對話，幫真正的醫師整理資訊。
 - 用溫暖、口語化的繁體中文，像門診護理師或住院醫師在聊天。
-- 依照目前的問診階段（phase）發問，\`phase\` 只限定問題主題，實際用字遣詞可以自由一點。
+- 依照目前的問診階段（phase）發問，phase 只限定問題主題，實際用字遣詞可以自由一點。
 - 話不要太長，1～3 句即可，最後一句一定要有一個清楚的問題。
-- 可以簡短回應病人的上一句感受（例如「聽起來你已經不舒服一陣子了」），再接問題。
-- 嚴禁出現「我覺得你是 XX 病」、「建議你吃 XX 藥」這類內容。
+- 可以簡短回應病人的感受，例如「聽起來你已經不舒服一陣子了」，再接問題。
+- 嚴禁出現「我覺得你是 XX 病」「建議你吃 XX 藥」這類內容。
   `;
 
   const userContext = `
 [phase]: ${phase}
 [已知資訊節錄（給你參考，可以引用）]
-- CC（主訴）: ${session.cc || ""}
+- CC: ${session.cc || ""}
 - HPI:
   - Onset & Course: ${session.hpi?.onset || ""}
   - Triggers/Relief: ${session.hpi?.triggersReliefs || ""}
@@ -70,7 +126,7 @@ async function buildDynamicQuestion(
 - phase="HPI_QUALITY_SITE": 問症狀的性質（刺痛、悶痛、灼熱、壓迫…）和位置。
 - phase="HPI_SEVERITY": 問嚴重程度 0–10 分，可以順便同理。
 - phase="HPI_ASSOC": 問有沒有一起出現的其他症狀，例如發燒、胸痛、呼吸急促、嘔吐、腹瀉、頭暈、麻木等。
-- phase="ROS": 依照一般症狀、呼吸、心血管、腸胃、泌尿、神經、皮膚做系統性掃描，可以請病人用列舉的方式說。
+- phase="ROS": 做系統性掃描，可以請病人用列舉的方式說有/沒有。
 - phase="PMH": 問慢性病、過去手術或住院，以及是否有過類似狀況。
 - phase="MEDS_ALLERGY": 問正在使用的處方藥／保健食品／中藥／自購藥，以及藥物/食物/環境過敏。
 - phase="FH_SH": 問家族心血管疾病、糖尿病、中風、癌症，以及菸酒、檳榔、咖啡因、運動、睡眠習慣。
@@ -93,7 +149,6 @@ export const dialogueManager = {
     const s: SessionData = await getSession(userId);
     let state: BotState = s.state || "RAPPORT";
 
-    // 小工具：更新 state + 存 session + 給下一題（由 LLM 生問題）
     async function moveTo(nextState: BotState, fallbackQuestion: string) {
       s.state = nextState;
       await setSession(userId, s);
@@ -103,86 +158,131 @@ export const dialogueManager = {
 
     switch (state) {
       case "RAPPORT":
-        // 一開始沒有使用者內容，只是打招呼，所以這一步直接讓 LLM 發揮
         return moveTo(
           "CC",
           "嗨～我是預診小幫手，待會會先簡單了解你的狀況，再把重點整理給醫師。今天主要想處理什麼不舒服呢？"
         );
 
-      case "CC":
+      case "CC": {
         s.cc = userMessage;
         return moveTo(
           "HPI_ONSET",
           "了解，你主要是不舒服在這個部分。大概是從什麼時候開始的？是突然發生還是慢慢變嚴重？"
         );
+      }
 
-      case "HPI_ONSET":
+      case "HPI_ONSET": {
+        const evalResult = await evaluateAnswer("HPI_ONSET", userMessage, s);
+        if (!evalResult.ok && evalResult.followup) {
+          return { text: evalResult.followup, state: "HPI_ONSET" };
+        }
         s.hpi = s.hpi || {};
         s.hpi.onset = userMessage;
         return moveTo(
           "HPI_TRIGGER_RELIEF",
           "這個症狀有沒有什麼情況會特別加重或比較緩解？例如活動、休息、姿勢改變或是吃東西之後？"
         );
+      }
 
-      case "HPI_TRIGGER_RELIEF":
+      case "HPI_TRIGGER_RELIEF": {
+        const evalResult = await evaluateAnswer("HPI_TRIGGER_RELIEF", userMessage, s);
+        if (!evalResult.ok && evalResult.followup) {
+          return { text: evalResult.followup, state: "HPI_TRIGGER_RELIEF" };
+        }
         s.hpi = s.hpi || {};
         s.hpi.triggersReliefs = userMessage;
         return moveTo(
           "HPI_QUALITY_SITE",
           "想再多了解一下這個不舒服的感覺，是刺痛、悶痛、灼熱、壓迫還是說不上來？大概是在身體哪個位置呢？"
         );
+      }
 
-      case "HPI_QUALITY_SITE":
+      case "HPI_QUALITY_SITE": {
+        const evalResult = await evaluateAnswer("HPI_QUALITY_SITE", userMessage, s);
+        if (!evalResult.ok && evalResult.followup) {
+          return { text: evalResult.followup, state: "HPI_QUALITY_SITE" };
+        }
         s.hpi = s.hpi || {};
         s.hpi.qualityAndSite = userMessage;
         return moveTo(
           "HPI_SEVERITY",
           "如果用 0 到 10 分來形容現在這個不舒服，0 分是完全不痛，10 分是最痛，現在大概會給幾分？"
         );
+      }
 
-      case "HPI_SEVERITY":
+      case "HPI_SEVERITY": {
+        const evalResult = await evaluateAnswer("HPI_SEVERITY", userMessage, s);
+        if (!evalResult.ok && evalResult.followup) {
+          return { text: evalResult.followup, state: "HPI_SEVERITY" };
+        }
         s.hpi = s.hpi || {};
         s.hpi.severity = userMessage;
         return moveTo(
           "HPI_ASSOC",
           "在這段期間，有沒有一起出現其他症狀？像是發燒、胸痛、呼吸變喘、噁心嘔吐、腹瀉、頭暈、手腳麻木之類的？如果有，可以幫我說一下。"
         );
+      }
 
-      case "HPI_ASSOC":
+      case "HPI_ASSOC": {
+        const evalResult = await evaluateAnswer("HPI_ASSOC", userMessage, s);
+        if (!evalResult.ok && evalResult.followup) {
+          return { text: evalResult.followup, state: "HPI_ASSOC" };
+        }
         s.hpi = s.hpi || {};
         s.hpi.associated = userMessage;
         return moveTo(
           "ROS",
-          "接下來會做一個簡單的全身檢查（ROS），看有沒有漏掉的地方。最近在體溫、咳嗽、胸悶心悸、腸胃（拉肚子、便祕）、小便、頭痛頭晕、皮膚疹子或搔癢方面，有沒有什麼特別的變化？如果都還好也可以說「沒有特別」。"
+          "接下來會做一個簡單的全身檢查（ROS），看有沒有漏掉的地方。最近在體溫、咳嗽、胸悶心悸、腸胃（拉肚子、便祕）、小便、頭痛頭暈、皮膚疹子或搔癢方面，有沒有什麼特別的變化？如果都還好也可以說「沒有特別」。"
         );
+      }
 
-      case "ROS":
+      case "ROS": {
+        const evalResult = await evaluateAnswer("ROS", userMessage, s);
+        if (!evalResult.ok && evalResult.followup) {
+          return { text: evalResult.followup, state: "ROS" };
+        }
         s.ros = userMessage;
         return moveTo(
           "PMH",
           "想再了解一下你過去的健康狀況：有沒有慢性病、平常固定追蹤的門診，或是以前住院、開刀的經驗？過去有沒有發生過跟這次很像的狀況？"
         );
+      }
 
-      case "PMH":
+      case "PMH": {
+        const evalResult = await evaluateAnswer("PMH", userMessage, s);
+        if (!evalResult.ok && evalResult.followup) {
+          return { text: evalResult.followup, state: "PMH" };
+        }
         s.pmh = userMessage;
         return moveTo(
           "MEDS_ALLERGY",
           "目前有在規則使用的處方藥、保健食品或中藥嗎？另外是否有任何藥物、食物或環境（像是花粉、塵蟎）過敏的情形？可以盡量幫我列出來。"
         );
+      }
 
-      case "MEDS_ALLERGY":
+      case "MEDS_ALLERGY": {
+        const evalResult = await evaluateAnswer("MEDS_ALLERGY", userMessage, s);
+        if (!evalResult.ok && evalResult.followup) {
+          return { text: evalResult.followup, state: "MEDS_ALLERGY" };
+        }
         s.medsAllergy = userMessage;
         return moveTo(
           "FH_SH",
           "最後想了解一下家族和生活習慣：家人當中有沒有高血壓、糖尿病、心臟病、中風或癌症？平常有沒有抽菸、喝酒、吃檳榔或大量咖啡因？運動和睡眠大概是什麼狀況呢？"
         );
+      }
 
-      case "FH_SH":
+      case "FH_SH": {
+        const evalResult = await evaluateAnswer("FH_SH", userMessage, s);
+        if (!evalResult.ok && evalResult.followup) {
+          return { text: evalResult.followup, state: "FH_SH" };
+        }
         s.fhSh = userMessage;
         s.state = "END";
         await setSession(userId, s);
         const summaryForUser = await generatePatientReply(s);
         return { text: summaryForUser, state: "END" };
+      }
 
       default:
         return {
