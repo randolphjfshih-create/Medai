@@ -155,7 +155,7 @@ async function buildDynamicQuestion(
 - FH/SH: ${session.fhSh || ""}
 
 請你根據 phase 決定下一個問題的重點：
-- phase="RAPPORT": 打招呼、簡單寒暄、建立信任，最後要確認「能不能開始聊今天不舒服的地方」。
+- phase="RAPPORT": 打招呼、簡單寒暄、建立信任，最後確認對方「準備好開始聊今天的狀況」。
 - phase="CC": 聚焦在「今天主要想解決什麼不舒服」，可以用一兩句同理，然後請他描述主訴。
 - phase="HPI_ONSET": 針對發作時間與病程問，像是從什麼時候開始、突然還是慢慢變嚴重。
 - phase="HPI_TRIGGER_RELIEF": 問什麼會讓症狀變好或變壞（活動、姿勢、休息、飲食等）。
@@ -194,16 +194,18 @@ export const dialogueManager = {
 
     switch (state) {
       case "RAPPORT":
+        // 開頭先打招呼＋建立關係，不直接問主訴
         return moveTo(
           "CC",
-          "嗨～我是預診小幫手，待會會先簡單了解你的狀況，再把重點整理給醫師。今天主要想處理什麼不舒服呢？"
+          "嗨～我是 AI 預診小幫手，先跟你打聲招呼 😊 我等等會一步一步了解你的狀況，幫你把重點整理給醫師。如果你準備好了，可以先跟我說說：今天主要是想處理哪一個不舒服的地方呢？"
         );
 
       case "CC": {
+        // 主訴不檢查：頭痛、手腕痛、胸悶… 這種短句都直接接受
         s.cc = userMessage;
         return moveTo(
           "HPI_ONSET",
-          "了解，你主要是不舒服在這個部分。大概是從什麼時候開始的？是突然發生還是慢慢變嚴重？"
+          "了解，你今天主要是因為這個不舒服來的。想再跟你確認一下，這個狀況大概是從什麼時候開始？是突然發生，還是慢慢變嚴重？"
         );
       }
 
@@ -216,7 +218,7 @@ export const dialogueManager = {
         s.hpi.onset = userMessage;
         return moveTo(
           "HPI_TRIGGER_RELIEF",
-          "這個症狀有沒有什麼情況會特別加重或比較緩解？例如活動、休息、姿勢改變或是吃東西之後？"
+          "這個不舒服有沒有發現什麼情況會特別加重或比較緩解？例如活動、休息、姿勢改變，或是吃東西前後？"
         );
       }
 
@@ -229,7 +231,7 @@ export const dialogueManager = {
         s.hpi.triggersReliefs = userMessage;
         return moveTo(
           "HPI_QUALITY_SITE",
-          "想再多了解一下這個不舒服的感覺，是刺痛、悶痛、灼熱、壓迫還是說不上來？大概是在身體哪個位置呢？"
+          "想再多了解一下這個不舒服的感覺，是刺痛、悶痛、灼熱、壓迫，還是說不上來的那種？大概是在身體哪個位置呢？"
         );
       }
 
@@ -242,7 +244,7 @@ export const dialogueManager = {
         s.hpi.qualityAndSite = userMessage;
         return moveTo(
           "HPI_SEVERITY",
-          "如果用 0 到 10 分來形容現在這個不舒服，0 分是完全不痛，10 分是最痛，現在大概會給幾分？"
+          "如果用 0 到 10 分來形容現在這個不舒服，0 分是完全不痛，10 分是最痛，你覺得大概會給幾分？"
         );
       }
 
@@ -255,7 +257,7 @@ export const dialogueManager = {
         s.hpi.severity = userMessage;
         return moveTo(
           "HPI_ASSOC",
-          "在這段期間，有沒有一起出現其他症狀？像是發燒、胸痛、呼吸變喘、噁心嘔吐、腹瀉、頭暈、手腳麻木之類的？如果有，可以幫我說一下。"
+          "在這段期間，有沒有一起出現其他症狀？像是發燒、胸痛、呼吸變喘、噁心嘔吐、腹瀉、頭暈、手腳麻木之類的，如果有可以幫我稍微描述一下。"
         );
       }
 
@@ -268,7 +270,7 @@ export const dialogueManager = {
         s.hpi.associated = userMessage;
         return moveTo(
           "ROS",
-          "接下來會做一個簡單的全身檢查（ROS），看有沒有漏掉的地方。最近在體溫、咳嗽、胸悶心悸、腸胃（拉肚子、便祕）、小便、頭痛頭暈、皮膚疹子或搔癢方面，有沒有什麼特別的變化？如果都還好也可以說「沒有特別」。"
+          "接下來我會做一個簡單的全身檢查（問症狀，不是實際檢查），看看有沒有容易被忽略的地方。最近在體溫、咳嗽、胸悶心悸、腸胃（拉肚子、便祕）、小便、頭痛頭暈、皮膚疹子或搔癢方面，有沒有什麼特別的變化？如果都還好也可以說「沒有特別」。"
         );
       }
 
