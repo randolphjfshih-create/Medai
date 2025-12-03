@@ -185,17 +185,52 @@
   const $videoCard = document.getElementById("videoCard");
   const $voiceToggle = document.getElementById("voice-toggle");
 
-  // === 語音輸出（TTS） ===
-  let voiceEnabled = false;
+// === 語音輸出（TTS） ===
+let voiceEnabled = !!($voiceToggle && $voiceToggle.checked);
+let hasInteracted = false; // 是否已經有使用者互動（點擊/送出等）
 
-  if ($voiceToggle) {
-    $voiceToggle.addEventListener("change", () => {
-      voiceEnabled = $voiceToggle.checked;
-      if (voiceEnabled && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-    });
+if ($voiceToggle) {
+  // 如果瀏覽器根本不支援 TTS，就關掉選項
+  if (!("speechSynthesis" in window)) {
+    $voiceToggle.checked = false;
+    $voiceToggle.disabled = true;
+    voiceEnabled = false;
   }
+
+  $voiceToggle.addEventListener("change", () => {
+    voiceEnabled = $voiceToggle.checked;
+    if (voiceEnabled && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+  });
+}
+
+// 只要頁面上有任何點擊，就當成使用者互動過
+window.addEventListener("click", () => {
+  hasInteracted = true;
+});
+window.addEventListener("touchstart", () => {
+  hasInteracted = true;
+});
+
+function speak(text) {
+    if (!voiceEnabled) return;
+    if (!("speechSynthesis" in window)) {
+      console.warn("speechSynthesis not supported");
+      return;
+    }
+    // 確保已經有互動過，減少被瀏覽器擋掉的機率
+    if (!hasInteracted) {
+      console.log("wait for user interaction before speaking");
+      return;
+    }
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = "zh-TW";
+    utter.rate = 1.0;
+    utter.pitch = 1.0;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+}
 
   function speak(text) {
     if (!voiceEnabled) return;
@@ -310,7 +345,6 @@
   const welcome = "嗨～我是 AI 預診小幫手。我會先簡單了解你的狀況，幫你把重點整理給醫師。今天主要哪裡不舒服呢？";
   addMessage(welcome, "ai");
   markTalking();
-  speak(welcome);
 
   $form.addEventListener("submit", async (e) => {
     e.preventDefault();
