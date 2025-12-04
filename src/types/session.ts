@@ -13,18 +13,16 @@ export type BotState =
   | "END";
 
 export interface SessionData {
-  userId: string;
+  // 👇 改成 optional，這樣 {} 也可以被當成 SessionData 使用
+  userId?: string;
 
-  // 👇👇 新增的語言欄位（一定要有）
+  // 對話語言：預設先用 zh，偵測到英文就變 en
   lang?: "zh" | "en";
 
-  // 狀態
   state?: BotState;
 
-  // 主訴
   cc?: string;
 
-  // 現病史
   hpi?: {
     onset?: string;
     triggersReliefs?: string;
@@ -33,15 +31,8 @@ export interface SessionData {
     associated?: string;
   };
 
-  // 系統性問診
   ros?: string;
-
-  // 既往史
   pmh?: string;
-
-  // 用藥 + 過敏
   medsAllergy?: string;
-
-  // 家族史 / 社會史
   fhSh?: string;
 }
