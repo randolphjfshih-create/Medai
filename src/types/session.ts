@@ -1,4 +1,3 @@
-
 export type BotState =
   | "RAPPORT"
   | "CC"
@@ -13,20 +12,36 @@ export type BotState =
   | "FH_SH"
   | "END";
 
-export interface HPIBlock {
-  onset?: string;
-  triggersReliefs?: string;
-  qualityAndSite?: string;
-  severity?: string;
-  associated?: string;
-}
-
 export interface SessionData {
+  userId: string;
+
+  // 👇👇 新增的語言欄位（一定要有）
+  lang?: "zh" | "en";
+
+  // 狀態
   state?: BotState;
+
+  // 主訴
   cc?: string;
-  hpi?: HPIBlock;
+
+  // 現病史
+  hpi?: {
+    onset?: string;
+    triggersReliefs?: string;
+    qualityAndSite?: string;
+    severity?: string;
+    associated?: string;
+  };
+
+  // 系統性問診
   ros?: string;
+
+  // 既往史
   pmh?: string;
+
+  // 用藥 + 過敏
   medsAllergy?: string;
+
+  // 家族史 / 社會史
   fhSh?: string;
 }
