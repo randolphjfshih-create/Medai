@@ -1,381 +1,76 @@
+<!-- ✅ 只列出「有改的區塊」，其餘 CSS / HTML 與你原本一模一樣 -->
 
-<!doctype html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="utf-8" />
-  <title>AI 預診小幫手</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif;
-      background: #f5f5f7;
-      height: 100vh;
-      display: flex;
-    }
-    .layout {
-      display: flex;
-      width: 100%;
-      height: 100%;
-    }
-    .chat-pane {
-      flex: 3;
-      display: flex;
-      flex-direction: column;
-      border-right: 1px solid #ddd;
-      background: #fff;
-    }
-    .chat-header {
-      padding: 12px 16px;
-      border-bottom: 1px solid #eee;
-      font-weight: 600;
-    }
-    .chat-messages {
-      flex: 1;
-      padding: 16px;
-      overflow-y: auto;
-      background: #f7f7fb;
-    }
-    .msg { margin-bottom: 10px; max-width: 80%; }
-    .msg.ai { text-align: left; }
-    .msg.user { text-align: right; margin-left: auto; }
-    .bubble {
-      display: inline-block;
-      padding: 8px 12px;
-      border-radius: 16px;
-      font-size: 14px;
-      line-height: 1.4;
-    }
-    .msg.ai .bubble { background: #fff; border: 1px solid #e1e1e8; }
-    .msg.user .bubble { background: #0f8fee; color: #fff; }
-    .chat-input {
-      display: flex;
-      padding: 8px;
-      border-top: 1px solid #eee;
-      gap: 8px;
-    }
-    .chat-input input {
-      flex: 1;
-      padding: 8px 10px;
-      border-radius: 999px;
-      border: 1px solid #ddd;
-      font-size: 14px;
-    }
-    .chat-input button {
-      padding: 8px 12px;
-      border-radius: 999px;
-      border: none;
-      background: #0f8fee;
-      color: #fff;
-      font-size: 14px;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .chat-input button:disabled {
-      opacity: .6;
-      cursor: default;
-    }
-    .video-pane {
-      flex: 2;
-      display: flex;
-      flex-direction: column;
-      padding: 16px;
-      background: radial-gradient(circle at top, #e4f1ff, #f5f5f7);
-    }
-    .video-card {
-      flex: 1;
-      border-radius: 16px;
-      background: #000;
-      overflow: hidden;
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: box-shadow .3s ease;
-      box-shadow: 0 12px 24px rgba(0,0,0,0.15);
-    }
-    .video-card video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    .badge {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(0,0,0,0.6);
-      color: #fff;
-      padding: 4px 8px;
-      border-radius: 999px;
-      font-size: 12px;
-    }
-    .status-dot {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: #4ade80;
-      margin-right: 4px;
-    }
-    .video-card.talking {
-      box-shadow: 0 0 0 2px #0f8fee, 0 16px 32px rgba(15,143,238,0.4);
-    }
-    .video-footer {
-      margin-top: 8px;
-      font-size: 12px;
-      color: #555;
-    }
-    .warn {
-      color: #b91c1c;
-      font-size: 12px;
-      margin-top: 4px;
-    }
-    @media (max-width: 900px) {
-      .layout {
-        flex-direction: column;
-      }
-      .video-pane {
-        order: -1;
-        height: 40vh;
-      }
-      .chat-pane {
-        flex: 1;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="layout">
-    <section class="chat-pane">
-      <div class="chat-header">AI 預診小幫手</div>
-      <div id="messages" class="chat-messages"></div>
-      <form id="chat-form" class="chat-input">
-        <input id="input" autocomplete="off" placeholder="輸入或說出想跟 AI 醫療助手說的話…" />
-        <button type="button" id="mic-btn" title="語音輸入">🎙️</button>
-        <button id="send-btn" type="submit">送出</button>
-      </form>
-    </section>
+<!-- 🔁 video-pane 區塊：雙影片 -->
+<section class="video-pane">
+  <div id="videoCard" class="video-card">
+    <!-- 聆聽影片（預設） -->
+    <video id="videoListening"
+           src="./doctor_listening.mp4"
+           autoplay muted loop playsinline></video>
 
-    <section class="video-pane">
-      <div id="videoCard" class="video-card">
-        <video id="docVideo" src="/public/doctor-loop.mp4"
-               autoplay muted loop playsinline></video>
-        <div class="badge"><span class="status-dot"></span>AI 虛擬醫師（非真人）</div>
-      </div>
-      <div class="video-footer">
-        這是 AI 預診助手模擬畫面，最終醫療判斷由真正醫師提供。
-        <div class="warn">
-          若出現胸痛、呼吸困難、意識改變等急重症狀，請立即尋求急救協助。
-        </div>
-        <label style="margin-top:6px;display:inline-flex;align-items:center;font-size:12px;gap:4px;">
-          <input type="checkbox" id="voice-toggle" checked />
-          開啟語音回覆（建議接上耳機）
-        </label>
-      </div>
-    </section>
+    <!-- 說話影片 -->
+    <video id="videoTalking"
+           src="./doctor_talking.mp4"
+           autoplay muted loop playsinline
+           style="display:none"></video>
+
+    <div class="badge">
+      <span class="status-dot"></span>AI 虛擬醫師（非真人）
+    </div>
   </div>
 
+  <div class="video-footer">
+    這是 AI 預診助手模擬畫面，最終醫療判斷由真正醫師提供。
+    <div class="warn">
+      若出現胸痛、呼吸困難、意識改變等急重症狀，請立即尋求急救協助。
+    </div>
+    <label style="margin-top:6px;display:inline-flex;align-items:center;font-size:12px;gap:4px;">
+      <input type="checkbox" id="voice-toggle" checked />
+      開啟語音回覆（建議接上耳機）
+    </label>
+  </div>
+</section>
+
 <script>
-  const $msg = document.getElementById("messages");
-  const $form = document.getElementById("chat-form");
-  const $input = document.getElementById("input");
-  const $btn = document.getElementById("send-btn");
-  const $micBtn = document.getElementById("mic-btn");
-  const $videoCard = document.getElementById("videoCard");
-  const $voiceToggle = document.getElementById("voice-toggle");
+  /* ====== 新增：影片狀態控制 ====== */
+  const $videoListening = document.getElementById("videoListening");
+  const $videoTalking = document.getElementById("videoTalking");
 
-// === 語音輸出（TTS） ===
-let voiceEnabled = !!($voiceToggle && $voiceToggle.checked);
-let hasInteracted = false; // 是否已經有使用者互動（點擊/送出等）
-
-if ($voiceToggle) {
-  // 如果瀏覽器根本不支援 TTS，就關掉選項
-  if (!("speechSynthesis" in window)) {
-    $voiceToggle.checked = false;
-    $voiceToggle.disabled = true;
-    voiceEnabled = false;
+  function setDoctorMode(mode) {
+    if (mode === "talking") {
+      $videoListening.style.display = "none";
+      $videoTalking.style.display = "block";
+      $videoTalking.play().catch(()=>{});
+    } else {
+      $videoTalking.style.display = "none";
+      $videoListening.style.display = "block";
+      $videoListening.play().catch(()=>{});
+    }
   }
 
-  $voiceToggle.addEventListener("change", () => {
-    voiceEnabled = $voiceToggle.checked;
-    if (voiceEnabled && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
-  });
-}
-
-// 只要頁面上有任何點擊，就當成使用者互動過
-window.addEventListener("click", () => {
-  hasInteracted = true;
-});
-window.addEventListener("touchstart", () => {
-  hasInteracted = true;
-});
-
-function speak(text) {
-    if (!voiceEnabled) return;
-    if (!("speechSynthesis" in window)) {
-      console.warn("speechSynthesis not supported");
-      return;
-    }
-    // 確保已經有互動過，減少被瀏覽器擋掉的機率
-    if (!hasInteracted) {
-      console.log("wait for user interaction before speaking");
-      return;
-    }
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = "zh-TW";
-    utter.rate = 1.0;
-    utter.pitch = 1.0;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utter);
-}
-
+  /* ====== 覆蓋你原本的 speak()（只多影片切換） ====== */
   function speak(text) {
     if (!voiceEnabled) return;
-    if (!("speechSynthesis" in window)) {
-      console.warn("speechSynthesis not supported");
-      return;
-    }
+    if (!("speechSynthesis" in window)) return;
+
+    // 🔊 開始講話 → 換說話影片
+    setDoctorMode("talking");
+    markTalking();
+
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "zh-TW";
     utter.rate = 1.0;
     utter.pitch = 1.0;
+
+    utter.onend = () => {
+      // ✅ 講完 → 換回聆聽影片
+      setDoctorMode("listening");
+    };
+
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utter);
   }
 
-  // === 語音輸入（STT） ===
-  let recognition = null;
-  let recognizing = false;
-
-  (function initSpeech() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.warn("此瀏覽器不支援語音辨識（SpeechRecognition）");
-      if ($micBtn) {
-        $micBtn.disabled = true;
-        $micBtn.title = "目前瀏覽器不支援語音輸入";
-      }
-      return;
-    }
-
-    recognition = new SpeechRecognition();
-    recognition.lang = "zh-TW";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => {
-      recognizing = true;
-      if ($micBtn) {
-        $micBtn.textContent = "🛑";
-        $micBtn.title = "點擊停止語音輸入";
-      }
-    };
-
-    recognition.onend = () => {
-      recognizing = false;
-      if ($micBtn) {
-        $micBtn.textContent = "🎙️";
-        $micBtn.title = "語音輸入";
-      }
-    };
-
-    recognition.onerror = (event) => {
-      console.error("speech error", event.error);
-      recognizing = false;
-      if ($micBtn) {
-        $micBtn.textContent = "🎙️";
-      }
-    };
-
-    recognition.onresult = (event) => {
-      const text = event.results[0][0].transcript;
-      if ($input) {
-        $input.value = text;
-        // 若想自動送出，可以打開這行：
-        // $form.requestSubmit();
-      }
-    };
-  })();
-
-  if ($micBtn) {
-    $micBtn.addEventListener("click", () => {
-      if (!recognition) return;
-      if (!recognizing) {
-        try {
-          recognition.start();
-        } catch (e) {
-          console.warn("recognition start error", e);
-        }
-      } else {
-        recognition.stop();
-      }
-    });
-  }
-
-  function getUserId() {
-    let id = localStorage.getItem("web-user-id");
-    if (!id) {
-      id = "web-" + Math.random().toString(36).slice(2, 10);
-      localStorage.setItem("web-user-id", id);
-    }
-    return id;
-  }
-  const userId = getUserId();
-
-  function addMessage(text, role) {
-    const div = document.createElement("div");
-    div.className = "msg " + role;
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.textContent = text;
-    div.appendChild(bubble);
-    $msg.appendChild(div);
-    $msg.scrollTop = $msg.scrollHeight;
-  }
-
-  function markTalking() {
-    $videoCard.classList.add("talking");
-    setTimeout(() => $videoCard.classList.remove("talking"), 2500);
-  }
-
-  // 開場白
-  const welcome = "嗨～我是 AI 預診小幫手。我會先簡單了解你的狀況，幫你把重點整理給醫師。今天主要哪裡不舒服呢？";
-  addMessage(welcome, "ai");
-  markTalking();
-
-  $form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const text = $input.value.trim();
-    if (!text) return;
-
-    addMessage(text, "user");
-    $input.value = "";
-    $btn.disabled = true;
-
-    try {
-      const resp = await fetch("/api/web-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, message: text })
-      });
-      if (!resp.ok) throw new Error("API error " + resp.status);
-      const data = await resp.json();
-      const reply = data.reply || "我收到你的訊息了！";
-      addMessage(reply, "ai");
-      markTalking();
-      speak(reply);
-    } catch (err) {
-      console.error(err);
-      const errMsg = "我這邊連線有點問題，可以稍後再試一次嗎？";
-      addMessage(errMsg, "ai");
-      markTalking();
-      speak(errMsg);
-    }
-    $btn.disabled = false;
-  });
+  // ✅ 頁面初始化：預設聆聽
+  setDoctorMode("listening");
 </script>
-</body>
-</html>
