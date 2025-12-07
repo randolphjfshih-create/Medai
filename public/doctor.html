@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AI 醫療預診助理</title>
+  <title>AI 醫療預診助手</title>
 
   <style>
     body {
@@ -13,7 +13,7 @@
       background: #f4f5f7;
       display: flex;
       justify-content: center;
-      padding: 16px;
+      padding: 12px;
     }
 
     .container {
@@ -21,7 +21,8 @@
       width: 100%;
     }
 
-    .doctor-video-wrapper {
+    /* ===== 影片區 ===== */
+    .video-card {
       position: relative;
       width: 100%;
       aspect-ratio: 1 / 1;
@@ -31,32 +32,34 @@
       margin-bottom: 12px;
     }
 
-    .doctor-video {
+    .video-card video {
       position: absolute;
       inset: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transition: opacity 0.25s ease;
     }
 
-    .doctor-video.hidden {
-      opacity: 0;
-      pointer-events: none;
+    .badge {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      font-size: 12px;
+      background: rgba(0,0,0,.55);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 12px;
     }
 
-    .doctor-video.visible {
-      opacity: 1;
-    }
-
+    /* ===== Chat ===== */
     .chat-box {
       background: #fff;
       border-radius: 12px;
-      padding: 12px;
+      padding: 10px;
       min-height: 120px;
-      margin-bottom: 8px;
-      max-height: 260px;
+      max-height: 280px;
       overflow-y: auto;
+      margin-bottom: 8px;
     }
 
     .chat-line {
@@ -65,18 +68,19 @@
       word-break: break-word;
     }
 
-    .chat-line.ai {
-      color: #1a1a1a;
-    }
-
     .chat-line.user {
       text-align: right;
       color: #555;
     }
 
+    .chat-line.ai {
+      color: #111;
+    }
+
+    /* ===== Input ===== */
     .input-row {
       display: flex;
-      gap: 8px;
+      gap: 6px;
     }
 
     input {
@@ -88,24 +92,20 @@
     }
 
     button {
-      padding: 0 16px;
+      padding: 0 14px;
       border-radius: 8px;
       border: none;
       background: #2563eb;
       color: #fff;
       font-size: 16px;
-      cursor: pointer;
     }
 
-    button:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
-
-    .error {
-      color: #b91c1c;
-      font-size: 14px;
-      margin-top: 4px;
+    .options {
+      margin-top: 6px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
   </style>
 </head>
@@ -113,173 +113,130 @@
 <body>
   <div class="container">
 
-    <!-- 🎥 Doctor video -->
-    <div class="doctor-video-wrapper">
-      <!-- Listening (預設顯示) -->
-      <video
-        id="video-listening"
-        class="doctor-video visible"
-        src="doctor_listening.mp4"
-        autoplay
-        muted
-        loop
-        playsinline
-      ></video>
+    <!-- 🎥 影片 -->
+    <div class="video-card">
+      <!-- 聆聽 -->
+      <video id="videoListening"
+             src="doctor_listening.mp4"
+             autoplay muted loop playsinline></video>
 
-      <!-- Talking (預設隱藏) -->
-      <video
-        id="video-talking"
-        class="doctor-video hidden"
-        src="doctor_talking.mp4"
-        autoplay
-        muted
-        loop
-        playsinline
-      ></video>
+      <!-- 說話 -->
+      <video id="videoTalking"
+             src="doctor_talking.mp4"
+             autoplay muted loop playsinline
+             style="display:none"></video>
+
+      <div class="badge">AI 虛擬醫師（非真人）</div>
     </div>
 
-    <!-- 💬 Chat -->
+    <!-- 💬 對話 -->
     <div class="chat-box" id="chatBox"></div>
-    <div class="error" id="errorBox"></div>
 
-    <!-- 📝 Input -->
+    <!-- ⌨️ 輸入 -->
     <div class="input-row">
-      <input
-        id="userInput"
-        placeholder="請輸入文字（中英文皆可）"
-      />
+      <input id="userInput" placeholder="請輸入文字（可中英文）" />
       <button id="sendBtn">送出</button>
+    </div>
+
+    <div class="options">
+      <input type="checkbox" id="voice-toggle" checked />
+      <label for="voice-toggle">開啟語音回覆</label>
     </div>
 
   </div>
 
-  <script>
-    window.addEventListener("DOMContentLoaded", () => {
-      const chatBox = document.getElementById("chatBox");
-      const input = document.getElementById("userInput");
-      const sendBtn = document.getElementById("sendBtn");
-      const errorBox = document.getElementById("errorBox");
+<script>
+  /* ===== DOM ===== */
+  const chatBox = document.getElementById("chatBox");
+  const input = document.getElementById("userInput");
+  const sendBtn = document.getElementById("sendBtn");
+  const voiceToggle = document.getElementById("voice-toggle");
 
-      const videoTalking = document.getElementById("video-talking");
-      const videoListening = document.getElementById("video-listening");
+  const videoListening = document.getElementById("videoListening");
+  const videoTalking = document.getElementById("videoTalking");
 
-      function setDoctorMode(mode) {
-        try {
-          if (mode === "talking") {
-            videoTalking.classList.add("visible");
-            videoTalking.classList.remove("hidden");
-            videoListening.classList.add("hidden");
-            videoListening.classList.remove("visible");
-            videoTalking.play().catch(() => {});
-          } else {
-            videoListening.classList.add("visible");
-            videoListening.classList.remove("hidden");
-            videoTalking.classList.add("hidden");
-            videoTalking.classList.remove("visible");
-            videoListening.play().catch(() => {});
-          }
-        } catch (e) {
-          console.error("[doctor] setDoctorMode error", e);
-        }
-      }
+  let voiceEnabled = true;
 
-      function addLine(text, who) {
-        const div = document.createElement("div");
-        div.className = `chat-line ${who}`;
-        div.innerText = text;
-        chatBox.appendChild(div);
-        chatBox.scrollTop = chatBox.scrollHeight;
-      }
+  voiceToggle.addEventListener("change", e => {
+    voiceEnabled = e.target.checked;
+  });
 
-      function speak(text, langHint) {
-        if (!window.speechSynthesis) return;
+  /* ===== 影片模式切換 ===== */
+  function setDoctorMode(mode) {
+    if (mode === "talking") {
+      videoListening.style.display = "none";
+      videoTalking.style.display = "block";
+      videoTalking.play().catch(()=>{});
+    } else {
+      videoTalking.style.display = "none";
+      videoListening.style.display = "block";
+      videoListening.play().catch(()=>{});
+    }
+  }
 
-        setDoctorMode("talking");
+  /* ===== Chat UI ===== */
+  function addLine(text, who) {
+    const div = document.createElement("div");
+    div.className = `chat-line ${who}`;
+    div.innerText = text;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
 
-        const utter = new SpeechSynthesisUtterance(text);
-        const isZh = /[\u4e00-\u9fff]/.test(text);
+  /* ===== 語音播放（不動你原邏輯，只加影片切換） ===== */
+  function speak(text) {
+    if (!voiceEnabled) return;
+    if (!window.speechSynthesis) return;
 
-        const lang =
-          langHint === "en"
-            ? "en-US"
-            : langHint === "zh"
-            ? "zh-TW"
-            : isZh
-            ? "zh-TW"
-            : "en-US";
+    setDoctorMode("talking");
 
-        utter.lang = lang;
-        utter.onend = () => {
-          setDoctorMode("listening");
-        };
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = /[\u4e00-\u9fff]/.test(text) ? "zh-TW" : "en-US";
 
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utter);
-      }
-
-      async function send() {
-        const text = input.value.trim();
-        if (!text) return;
-
-        errorBox.innerText = "";
-        addLine(text, "user");
-        input.value = "";
-        sendBtn.disabled = true;
-
-        setDoctorMode("listening");
-
-        try {
-          // 🔑 這裡請求結構改成和 ai-patient.html 一致（假設是 userId + message）
-          const res = await fetch("/api/web-chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userId: "web-doctor",   // 如果你 ai-patient.html 用別的欄位，這裡跟它一樣改掉
-              message: text
-            }),
-          });
-
-          if (!res.ok) {
-            errorBox.innerText = `伺服器回應錯誤 (${res.status})，請稍後再試。`;
-            addLine("（系統暫時無法連線，請稍後再試。）", "ai");
-            return;
-          }
-
-          const data = await res.json().catch(e => {
-            console.error("JSON parse error", e);
-            errorBox.innerText = "回應格式有問題，請通知系統管理者。";
-            addLine("（系統回應格式有問題，請通知工作人員。）", "ai");
-            return null;
-          });
-          if (!data) return;
-
-          const replyText = data.reply || data.text || "我這邊收到你的訊息了，已經幫你整理中。";
-          const lang = data.lang || "zh";
-
-          addLine(replyText, "ai");
-          speak(replyText, lang);
-        } catch (e) {
-          console.error("[doctor] send error", e);
-          errorBox.innerText = "無法連線到伺服器，請確認目前網址是否正確。";
-          addLine("（目前似乎連不上伺服器，請稍後再試或通知工作人員。）", "ai");
-        } finally {
-          sendBtn.disabled = false;
-        }
-      }
-
-      sendBtn.addEventListener("click", send);
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") send();
-      });
-
+    utter.onend = () => {
       setDoctorMode("listening");
+    };
 
-      // 初次打招呼（前端版，可以保留或拿掉）
-      const hi =
-        "嗨～我是 AI 預診小幫手，等等會一步一步了解你的狀況，幫你把重點整理給醫師。你可以先跟我說，最近身體或心情上有什麼想聊的。";
-      addLine(hi, "ai");
-      speak(hi, "zh");
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utter);
+  }
+
+  /* ===== 發送訊息 ===== */
+  async function send() {
+    const text = input.value.trim();
+    if (!text) return;
+
+    addLine(text, "user");
+    input.value = "";
+    setDoctorMode("listening");
+
+    const res = await fetch("/api/web-chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: "web-patient",
+        message: text
+      })
     });
-  </script>
+
+    const data = await res.json();
+    const reply = data.reply || data.text;
+
+    addLine(reply, "ai");
+    speak(reply);
+  }
+
+  sendBtn.addEventListener("click", send);
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") send();
+  });
+
+  /* ===== 初始 ===== */
+  setDoctorMode("listening");
+  const hi = "嗨～我是 AI 預診小幫手，我會先幫你整理狀況，等下再交給醫師。你可以先跟我說說最近哪裡不舒服。";
+  addLine(hi, "ai");
+  speak(hi);
+</script>
+
 </body>
 </html>
