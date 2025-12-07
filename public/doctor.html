@@ -94,10 +94,12 @@
       background: #2563eb;
       color: #fff;
       font-size: 16px;
+      cursor: pointer;
     }
 
     button:disabled {
       opacity: 0.6;
+      cursor: default;
     }
 
     .error {
@@ -117,7 +119,7 @@
       <video
         id="video-listening"
         class="doctor-video visible"
-        src="./videos/doctor_listening.mp4"
+        src="doctor_listening.mp4"
         autoplay
         muted
         loop
@@ -128,7 +130,7 @@
       <video
         id="video-talking"
         class="doctor-video hidden"
-        src="./videos/doctor_talking.mp4"
+        src="doctor_talking.mp4"
         autoplay
         muted
         loop
@@ -153,8 +155,6 @@
 
   <script>
     window.addEventListener("DOMContentLoaded", () => {
-      console.log("[doctor.html] DOM loaded");
-
       const chatBox = document.getElementById("chatBox");
       const input = document.getElementById("userInput");
       const sendBtn = document.getElementById("sendBtn");
@@ -163,19 +163,7 @@
       const videoTalking = document.getElementById("video-talking");
       const videoListening = document.getElementById("video-listening");
 
-      if (!chatBox || !input || !sendBtn || !videoTalking || !videoListening) {
-        console.error("[doctor.html] 有元素沒抓到", {
-          chatBox,
-          input,
-          sendBtn,
-          videoTalking,
-          videoListening,
-        });
-        return;
-      }
-
       function setDoctorMode(mode) {
-        console.log("[doctor.html] setDoctorMode:", mode);
         try {
           if (mode === "talking") {
             videoTalking.classList.add("visible");
@@ -191,7 +179,7 @@
             videoListening.play().catch(() => {});
           }
         } catch (e) {
-          console.error("[doctor.html] setDoctorMode error", e);
+          console.error("[doctor] setDoctorMode error", e);
         }
       }
 
@@ -204,17 +192,13 @@
       }
 
       function speak(text, langHint) {
-        if (!window.speechSynthesis) {
-          console.warn("[doctor.html] 此環境不支援 SpeechSynthesis");
-          return;
-        }
+        if (!window.speechSynthesis) return;
 
         setDoctorMode("talking");
 
         const utter = new SpeechSynthesisUtterance(text);
-
-        // 簡單判斷語言：有中文就用 zh-TW，否則用 en-US，langHint 可以從後端來
         const isZh = /[\u4e00-\u9fff]/.test(text);
+
         const lang =
           langHint === "en"
             ? "en-US"
@@ -225,7 +209,6 @@
             : "en-US";
 
         utter.lang = lang;
-
         utter.onend = () => {
           setDoctorMode("listening");
         };
@@ -246,32 +229,29 @@
         setDoctorMode("listening");
 
         try {
-          console.log("[doctor.html] POST /api/web-chat", text);
+          // 🔑 這裡請求結構改成和 ai-patient.html 一致（假設是 userId + message）
           const res = await fetch("/api/web-chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: text }),
+            body: JSON.stringify({
+              userId: "web-doctor",   // 如果你 ai-patient.html 用別的欄位，這裡跟它一樣改掉
+              message: text
+            }),
           });
 
           if (!res.ok) {
-            const msg = `伺服器回應狀態碼 ${res.status}`;
-            console.error("[doctor.html] fetch error:", msg);
-            errorBox.innerText = "系統暫時無法連線，請稍後再試。";
+            errorBox.innerText = `伺服器回應錯誤 (${res.status})，請稍後再試。`;
             addLine("（系統暫時無法連線，請稍後再試。）", "ai");
             return;
           }
 
-          let data;
-          try {
-            data = await res.json();
-          } catch (e) {
-            console.error("[doctor.html] 解析 JSON 失敗", e);
+          const data = await res.json().catch(e => {
+            console.error("JSON parse error", e);
             errorBox.innerText = "回應格式有問題，請通知系統管理者。";
             addLine("（系統回應格式有問題，請通知工作人員。）", "ai");
-            return;
-          }
-
-          console.log("[doctor.html] /api/web-chat response:", data);
+            return null;
+          });
+          if (!data) return;
 
           const replyText = data.reply || data.text || "我這邊收到你的訊息了，已經幫你整理中。";
           const lang = data.lang || "zh";
@@ -279,7 +259,7 @@
           addLine(replyText, "ai");
           speak(replyText, lang);
         } catch (e) {
-          console.error("[doctor.html] send 發生錯誤", e);
+          console.error("[doctor] send error", e);
           errorBox.innerText = "無法連線到伺服器，請確認目前網址是否正確。";
           addLine("（目前似乎連不上伺服器，請稍後再試或通知工作人員。）", "ai");
         } finally {
@@ -287,20 +267,18 @@
         }
       }
 
-      // 綁定按鈕與 Enter 鍵
       sendBtn.addEventListener("click", send);
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          send();
-        }
+        if (e.key === "Enter") send();
       });
 
-      // 初始狀態 → 聆聽影片
       setDoctorMode("listening");
 
-      // 可選：一開始先跟使用者打招呼（前端版）
-      addLine("嗨～我是 AI 預診小幫手，等等會一步一步了解你的狀況，幫你把重點整理給醫師。你可以先跟我說，最近身體或心情上有什麼想聊的。", "ai");
-      speak("嗨～我是 AI 預診小幫手，等等會一步一步了解你的狀況，幫你把重點整理給醫師。", "zh");
+      // 初次打招呼（前端版，可以保留或拿掉）
+      const hi =
+        "嗨～我是 AI 預診小幫手，等等會一步一步了解你的狀況，幫你把重點整理給醫師。你可以先跟我說，最近身體或心情上有什麼想聊的。";
+      addLine(hi, "ai");
+      speak(hi, "zh");
     });
   </script>
 </body>
