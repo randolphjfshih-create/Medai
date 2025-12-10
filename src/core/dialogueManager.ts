@@ -218,8 +218,8 @@ export const dialogueManager = {
         }
         await setSession(userId, s);
 
-        const zh = "嗨～我是 AI 預診小幫手，先跟你打聲招呼 😊 我等等會一步一步了解你的狀況，幫你把重點整理給醫師。如果你準備好了，可以先跟我說說。";
-        const en = "Hi! I'm your AI pre-consultation assistant 😊 Just saying hello first. I'll ask a few questions to better understand how you're feeling and summarize it for the doctor. When you're ready, you can start sharing.";
+        const zh = "嗨～我是 AI 預診小幫手，先跟你打聲招呼！  我等等會一步一步了解你的狀況，幫你把重點整理給醫師。如果你準備好了，可以先跟我說說。";
+        const en = "Hi! I'm your AI pre-consultation assistant.  Just saying hello first. I'll ask a few questions to better understand how you're feeling and summarize it for the doctor. When you're ready, you can start sharing.";
 
         s.state = "CC";
         await setSession(userId, s);
