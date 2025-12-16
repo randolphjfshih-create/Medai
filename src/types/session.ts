@@ -38,7 +38,7 @@ export interface SessionData {
   medsAllergy?: string;
   fhSh?: string;
 
-  // 🆕 病患體驗問卷
-  satisfaction?: string; // 滿意度
-  recommend?: string;    // 是否推薦
+  // 病患體驗回饋
+  satisfaction?: string;
+  recommend?: string;
 }
