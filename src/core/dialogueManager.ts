@@ -213,7 +213,13 @@ export const dialogueManager = {
     async function moveTo(nextState: BotState, fallbackQuestion: string) {
       s.state = nextState;
       await setSession(userId, s);
-      const question = await buildDynamicQuestion(nextState, s, fallbackQuestion);
+
+      // For questionnaire steps, always use the fixed question to avoid the LLM drifting back to medical questions.
+      const isQuestionnaire = nextState === "SATISFACTION" || nextState === "RECOMMEND";
+      const question = isQuestionnaire
+        ? fallbackQuestion
+        : await buildDynamicQuestion(nextState, s, fallbackQuestion);
+
       return { text: question, state: nextState };
     }
 
