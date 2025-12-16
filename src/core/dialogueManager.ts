@@ -21,7 +21,6 @@ export function nextQuickReplies(state?: BotState): string[] | undefined {
     case "PMH": return ["無慢性病", "高血壓", "糖尿病", "心臟病", "氣喘", "其他"];
     case "MEDS_ALLERGY": return ["無用藥", "有慢箋", "保健品", "藥物過敏", "食物過敏", "環境過敏"];
     case "FH_SH": return ["家族心血管", "家族糖尿病", "抽菸", "喝酒", "運動規律", "睡眠差"];
-    // 滿意度 & 推薦（體驗相關）
     case "SATISFACTION": return ["非常滿意", "還可以", "普通", "不太滿意"];
     case "RECOMMEND": return ["會", "可能會", "不一定", "不會"];
     default: return undefined;
@@ -221,8 +220,8 @@ export const dialogueManager = {
         }
         await setSession(userId, s);
 
-        const zh = "嗨～我是 AI 預診小幫手，先跟你打聲招呼！  我等等會一步一步了解你的狀況，幫你把重點整理給醫師。如果你準備好了，可以先跟我說說。";
-        const en = "Hi! I'm your AI pre-consultation assistant.  Just saying hello first. I'll ask a few questions to better understand how you're feeling and summarize it for the doctor. When you're ready, you can start sharing.";
+        const zh = "嗨～我是 AI 預診小幫手，先跟你打聲招呼 😊 我等等會一步一步了解你的狀況，幫你把重點整理給醫師。如果你準備好了，可以先跟我說說。";
+        const en = "Hi! I'm your AI pre-consultation assistant 😊 Just saying hello first. I'll ask a few questions to better understand how you're feeling and summarize it for the doctor. When you're ready, you can start sharing.";
 
         s.state = "CC";
         await setSession(userId, s);
@@ -361,43 +360,40 @@ export const dialogueManager = {
       }
 
       case "FH_SH": {
-        const evalResult = await evaluateAnswer("FH_SH", userMessage, s);
-        if (!evalResult.ok && evalResult.followup) {
-          return { text: evalResult.followup, state: "FH_SH" };
-        }
-        s.fhSh = userMessage;
+  const evalResult = await evaluateAnswer("FH_SH", userMessage, s);
+  if (!evalResult.ok && evalResult.followup) {
+    return { text: evalResult.followup, state: "FH_SH" };
+  }
+  s.fhSh = userMessage;
 
-        // 問診結束前：加入病人端體驗問卷（滿意度）
-        const zhQ =
-          "好的，謝謝你這麼詳細的說明 🙏 在結束之前，想快速請教一下，你對剛才這段 AI 預診問答的整體感受如何？\n\n你可以跟我說：非常滿意、還可以、普通或不太滿意～";
-        const enQ =
-          "Thank you for sharing all these details 🙏 Before we finish, I'd like to quickly ask: how do you feel about this AI pre-consultation overall?\n\nYou can answer something like: very satisfied, okay, average, or not very satisfied.";
+  // 🆕 問診結束前：滿意度調查（病人怎麼回答都接受）
+  const zhQ =
+    "好的，謝謝你這麼詳細的說明 🙏 在結束之前，想快速請教一下，你對剛才這段 AI 預診問答的整體感受如何？\n\n你可以跟我說：非常滿意、還可以、普通或不太滿意～";
+  const enQ =
+    "Thank you for sharing all these details 🙏 Before we finish, I'd like to quickly ask: how do you feel about this AI pre-consultation overall?\n\nYou can answer: very satisfied, okay, average, or not very satisfied.";
+  return moveTo("SATISFACTION", s.lang === "en" ? enQ : zhQ);
+}
 
-        return moveTo("SATISFACTION", s.lang === "en" ? enQ : zhQ);
-      }
+case "SATISFACTION": {
+  s.satisfaction = userMessage;
 
-      case "SATISFACTION": {
-        // 病人怎麼回答都接受，純蒐集體驗回饋
-        s.satisfaction = userMessage;
+  // 🆕 是否願意推薦給其他人使用
+  const zhQ =
+    "感謝你的回饋，我會把這些意見帶給團隊 🙌\n\n最後一題就好：如果未來有朋友或家人想在看醫師前，先跟 AI 簡單聊聊、幫忙整理重點，你覺得你會願意推薦他們使用這個服務嗎？";
+  const enQ =
+    "Thanks for your feedback — it helps us improve 🙌\n\nLast question: if a friend or family member wanted to chat with an AI to organize key points before seeing a doctor, would you recommend this service?";
+  return moveTo("RECOMMEND", s.lang === "en" ? enQ : zhQ);
+}
 
-        const zhQ =
-          "感謝你的回饋，我會把這些意見帶給團隊 🙌\n\n最後一題就好：如果未來有朋友或家人想在看醫師前，先跟 AI 簡單聊聊、幫忙整理重點，你覺得你會願意推薦他們使用這個服務嗎？";
-        const enQ =
-          "Thank you for your feedback — it’s very helpful for improving this service 🙌\n\nLast question: if your friends or family needed to quickly talk to an AI to organize their thoughts before seeing a doctor, would you recommend this service to them?";
+case "RECOMMEND": {
+  s.recommend = userMessage;
+  s.state = "END";
+  await setSession(userId, s);
 
-        return moveTo("RECOMMEND", s.lang === "en" ? enQ : zhQ);
-      }
-
-      case "RECOMMEND": {
-        s.recommend = userMessage;
-        s.state = "END";
-        await setSession(userId, s);
-
-        const summaryForUser = await generatePatientReply(s);
-        return { text: summaryForUser, state: "END" };
-      }
-
-      default:
+  const summaryForUser = await generatePatientReply(s);
+  return { text: summaryForUser, state: "END" };
+}
+default:
         return {
           text: s.lang === "en"
             ? "I’ve summarized your key information for the doctor. They will go through the details with you shortly. If you’d like to start again, you can type \"restart\"."
