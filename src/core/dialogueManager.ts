@@ -226,7 +226,7 @@ export const dialogueManager = {
         }
         await setSession(userId, s);
 
-        const zh = "嗨～我是 AI 預診小幫手，先跟你打聲招呼 😊 我等等會一步一步了解你的狀況，幫你把重點整理給醫師。如果你準備好了，可以先跟我說說。";
+        const zh = "嗨～我是 AI 預診小幫手，先跟你打聲招呼 😊 我等等會一步一步了解你的狀況，幫你把重點整理給醫師。如果你準備好了，可以先跟我說說你今天的症狀。";
         const en = "Hi! I'm your AI pre-consultation assistant 😊 Just saying hello first. I'll ask a few questions to better understand how you're feeling and summarize it for the doctor. When you're ready, you can start sharing.";
 
         s.state = "CC";
@@ -367,10 +367,6 @@ export const dialogueManager = {
 
       case "FH_SH": {
         const evalResult = await evaluateAnswer("FH_SH", userMessage, s);
-        if (!evalResult.ok && evalResult.followup) {
-          return { text: evalResult.followup, state: "FH_SH" };
-        }
-        s.fhSh = userMessage;
 
         // ✅ 問診結束前：滿意度調查
         const zhQ =
@@ -378,6 +374,12 @@ export const dialogueManager = {
         const enQ =
           "Thank you for sharing all these details 🙏\nBefore we finish, how satisfied are you with this AI pre-consultation experience?\n\nYou can answer: very satisfied / okay / average / not very satisfied.";
         return moveTo("SATISFACTION", s.lang === "en" ? enQ : zhQ);
+        
+        if (!evalResult.ok && evalResult.followup) {
+          return { text: evalResult.followup, state: "FH_SH" };
+        }
+        s.fhSh = userMessage;
+
       }
 
       case "SATISFACTION": {
