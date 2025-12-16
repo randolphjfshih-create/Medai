@@ -21,6 +21,9 @@ export function nextQuickReplies(state?: BotState): string[] | undefined {
     case "PMH": return ["無慢性病", "高血壓", "糖尿病", "心臟病", "氣喘", "其他"];
     case "MEDS_ALLERGY": return ["無用藥", "有慢箋", "保健品", "藥物過敏", "食物過敏", "環境過敏"];
     case "FH_SH": return ["家族心血管", "家族糖尿病", "抽菸", "喝酒", "運動規律", "睡眠差"];
+    // 滿意度 & 推薦（體驗相關）
+    case "SATISFACTION": return ["非常滿意", "還可以", "普通", "不太滿意"];
+    case "RECOMMEND": return ["會", "可能會", "不一定", "不會"];
     default: return undefined;
   }
 }
@@ -363,6 +366,30 @@ export const dialogueManager = {
           return { text: evalResult.followup, state: "FH_SH" };
         }
         s.fhSh = userMessage;
+
+        // 問診結束前：加入病人端體驗問卷（滿意度）
+        const zhQ =
+          "好的，謝謝你這麼詳細的說明 🙏 在結束之前，想快速請教一下，你對剛才這段 AI 預診問答的整體感受如何？\n\n你可以跟我說：非常滿意、還可以、普通或不太滿意～";
+        const enQ =
+          "Thank you for sharing all these details 🙏 Before we finish, I'd like to quickly ask: how do you feel about this AI pre-consultation overall?\n\nYou can answer something like: very satisfied, okay, average, or not very satisfied.";
+
+        return moveTo("SATISFACTION", s.lang === "en" ? enQ : zhQ);
+      }
+
+      case "SATISFACTION": {
+        // 病人怎麼回答都接受，純蒐集體驗回饋
+        s.satisfaction = userMessage;
+
+        const zhQ =
+          "感謝你的回饋，我會把這些意見帶給團隊 🙌\n\n最後一題就好：如果未來有朋友或家人想在看醫師前，先跟 AI 簡單聊聊、幫忙整理重點，你覺得你會願意推薦他們使用這個服務嗎？";
+        const enQ =
+          "Thank you for your feedback — it’s very helpful for improving this service 🙌\n\nLast question: if your friends or family needed to quickly talk to an AI to organize their thoughts before seeing a doctor, would you recommend this service to them?";
+
+        return moveTo("RECOMMEND", s.lang === "en" ? enQ : zhQ);
+      }
+
+      case "RECOMMEND": {
+        s.recommend = userMessage;
         s.state = "END";
         await setSession(userId, s);
 
