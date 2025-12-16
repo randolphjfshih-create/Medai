@@ -174,8 +174,7 @@ async function buildDynamicQuestion(
 - PMH: ${session.pmh || ""}
 - Meds/Allergy: ${session.medsAllergy || ""}
 - FH/SH: ${session.fhSh || ""}
-- SATISFACTION: ${session.SATISFACTION || ""}
-- RECOMMEND: ${session.RECOMMEND || ""}
+
 
 請你根據 phase 決定下一個問題的重點：
 - phase="RAPPORT": 打招呼、簡單寒暄、建立信任（實務上這一段在其他邏輯處理，這裡主要用在後續）。
