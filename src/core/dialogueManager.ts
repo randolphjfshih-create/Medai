@@ -367,7 +367,11 @@ export const dialogueManager = {
 
       case "FH_SH": {
         const evalResult = await evaluateAnswer("FH_SH", userMessage, s);
-
+        if (!evalResult.ok && evalResult.followup) {
+          return { text: evalResult.followup, state: "FH_SH" };
+        }
+        s.fhSh = userMessage;
+        
         // ✅ 問診結束前：滿意度調查
         const zhQ =
           "好的，謝謝你這麼詳細的說明 🙏\n在結束之前，想快速請教一下：你對剛才這段 AI 預診問答的整體感受如何？\n\n你可以回答：非常滿意、還可以、普通或不太滿意。";
@@ -375,11 +379,6 @@ export const dialogueManager = {
           "Thank you for sharing all these details 🙏\nBefore we finish, how satisfied are you with this AI pre-consultation experience?\n\nYou can answer: very satisfied / okay / average / not very satisfied.";
         return moveTo("SATISFACTION", s.lang === "en" ? enQ : zhQ);
         
-        if (!evalResult.ok && evalResult.followup) {
-          return { text: evalResult.followup, state: "FH_SH" };
-        }
-        s.fhSh = userMessage;
-
       }
 
       case "SATISFACTION": {
