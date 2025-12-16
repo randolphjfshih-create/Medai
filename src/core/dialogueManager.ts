@@ -174,6 +174,8 @@ async function buildDynamicQuestion(
 - PMH: ${session.pmh || ""}
 - Meds/Allergy: ${session.medsAllergy || ""}
 - FH/SH: ${session.fhSh || ""}
+- SATISFACTION: ${session.SATISFACTION || ""}
+- RECOMMEND: ${session.RECOMMEND || ""}
 
 請你根據 phase 決定下一個問題的重點：
 - phase="RAPPORT": 打招呼、簡單寒暄、建立信任（實務上這一段在其他邏輯處理，這裡主要用在後續）。
@@ -187,6 +189,8 @@ async function buildDynamicQuestion(
 - phase="PMH": 問慢性病、過去手術或住院，以及是否有過類似狀況。
 - phase="MEDS_ALLERGY": 問正在使用的處方藥／保健食品／中藥／自購藥，以及藥物/食物/環境過敏。
 - phase="FH_SH": 問家族心血管疾病、糖尿病、中風、癌症，以及菸酒、檳榔、咖啡因、運動、睡眠習慣。
+- phase="SATISFACTION": 問這次問答的滿意度。
+- phase="RECOMMEND": 問是否推薦別人這套系統。
 
 請輸出「一小段自然的對話內容」，最後一句要是一個問題。
 不要多講任何關於診斷或治療的建議。
@@ -226,8 +230,8 @@ export const dialogueManager = {
         }
         await setSession(userId, s);
 
-        const zh = "嗨～我是 AI 預診小幫手，先跟你打聲招呼 😊 我等等會一步一步了解你的狀況，幫你把重點整理給醫師。如果你準備好了，可以先跟我說說你今天的症狀。";
-        const en = "Hi! I'm your AI pre-consultation assistant 😊 Just saying hello first. I'll ask a few questions to better understand how you're feeling and summarize it for the doctor. When you're ready, you can start sharing.";
+        const zh = "嗨～我是 AI 預診小幫手，先跟你打聲招呼 我等等會一步一步了解你的狀況，幫你把重點整理給醫師。如果你準備好了，可以先跟我說說你今天的症狀。";
+        const en = "Hi! I'm your AI pre-consultation assistant Just saying hello first. I'll ask a few questions to better understand how you're feeling and summarize it for the doctor. When you're ready, you can start sharing.";
 
         s.state = "CC";
         await setSession(userId, s);
